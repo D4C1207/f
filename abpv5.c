@@ -1,3 +1,4 @@
+
 //================== 標準函式庫 ===================
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,7 +17,7 @@
 #define mm 6                  // 每個符號的位數
 #define m ((1 << mm) - 1)     // GF(2^mm) 的非零元素個數
 #define nn 63                 // RS 碼長（符號數）
-#define kk 55                 // RS 資料符號數
+#define kk 55               // RS 資料符號數
 #define tt ((nn - kk) / 2)    // 可糾正符號數
 
 //================== ADP 參數設定 ===================
@@ -25,11 +26,11 @@
 #define TOTAL_BITS (RS_SYM * mm)              // 總二進位位數
 #define PARITY_BITS ((RS_SYM - RS_DAT) * mm)   // 校驗位數
 #define MAX_ITER 20      // 最大迭代次數
-#define DAMPING  0.15  // 阻尼係數
+#define DAMPING  0.05  // 阻尼係數
 double SNR_DB = 5.0;     // 信噪比 (dB)
 #define NUM_TRIALS 1// 模擬試驗次數
 // 用於partial更新中更新的不可靠位元數量（可根據實驗調整）
-#define PARTIAL_UPDATE_COUNT 240
+#define PARTIAL_UPDATE_COUNT TOTAL_BITS
 // 分組次數（grouping）－論文中建議多次試驗
 #define NUM_GROUPS 10
 
@@ -237,6 +238,15 @@ void buildGroupedSymbolLevelParityCheckMatrix(double* LLR, int group) {
         for (int c = 0; c < 20; c++)
             printf("%d", HBit[r][c]);
         printf(" ...\n");
+    }
+    // 印出 HBit 前 10 列每列前 40 個 bits
+    printf("== HBit 前 10 列（每列前 40 bits）==\n");
+    for (int row = 0; row < 10; row++) {
+        printf("HBit row %2d: ", row);
+        for (int col = 0; col < 40; col++) {
+            printf("%d", HBit[row][col]);
+        }
+        printf("\n");
     }
 }
 
@@ -508,6 +518,10 @@ void partial_spa_update(double* L) {
         int idx = bits[i].idx;
         L[idx] += DAMPING * E[idx];
     }
+    for (int i = 0; i < TOTAL_BITS; i++) {
+        if (L[i] > 20.0) L[i] = 20.0;
+        if (L[i] < -20.0) L[i] = -20.0;
+    }
     free(E);
 }
 
@@ -611,8 +625,8 @@ void abp_decode() {
     int iter;
     for (iter = 0; iter < MAX_ITER; iter++) {
         partial_spa_update(LLR);
-        adapt_H(LLR);
-        degree2_random_connection(HBit, PARITY_BITS);
+        //adapt_H(LLR);
+        //degree2_random_connection(HBit, PARITY_BITS);
         double avg_abs = 0.0;
         for (int i = 0; i < TOTAL_BITS; i++)
             avg_abs += fabs(LLR[i]);
