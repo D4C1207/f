@@ -118,6 +118,13 @@ void companionMatrix(unsigned char a, unsigned char MComp[][mm]) {
             MComp[r][c] = (product >> r) & 1;
         }
     }
+    if (a == 1) {
+        printf("CompanionMatrix for a=1:\n");
+        for (int r = 0; r < mm; r++) {
+            for (int c = 0; c < mm; c++) printf("%d", MComp[r][c]);
+            printf("\n");
+        }
+    }
 }
 
 //================== 非二進位 Hs 生成 ===================
@@ -138,20 +145,29 @@ void buildNonbinaryHs(unsigned char Hs[nn - kk][nn]) {
 void buildRSBinaryParityCheckMatrix() {
     unsigned char Hs[nn - kk][nn];
     buildNonbinaryHs(Hs);
+
+    // 清空 HBit
     for (int i = 0; i < PARITY_BITS; i++)
         for (int j = 0; j < TOTAL_BITS; j++)
             HBit[i][j] = 0;
+
+    // 正確的 binary image 展開
     for (int i = 0; i < nn - kk; i++) {
         for (int j = 0; j < nn; j++) {
-            unsigned char MComp[mm][mm];
-            companionMatrix(Hs[i][j], MComp);
-            for (int r = 0; r < mm; r++)
-                for (int c = 0; c < mm; c++)
-                    HBit[i * mm + r][j * mm + c] = MComp[r][c];
+            unsigned char h = Hs[i][j];
+            // 對每個 bit (r, c)
+            for (int r = 0; r < mm; r++) {
+                unsigned char basis = 1 << r;
+                unsigned char prod = gf_mul(h, basis); // h · α^r
+                for (int c = 0; c < mm; c++) {
+                    if ((prod >> c) & 1) {
+                        HBit[i * mm + c][j * mm + r] = 1;
+                    }
+                }
+            }
         }
     }
 }
-
 // ========== 論文版 baseline HDD（bit-wise 判斷 + symbol 重建）==========
 void hdd_baseline(unsigned char* bits, unsigned short* decoded) {
     for (int s = 0; s < RS_SYM; s++) {
@@ -689,6 +705,20 @@ int main() {
                 bits[s * mm + j] = (rs_codeword[s] >> j) & 1;
             }
         }
+        // ====== HBit/SPA 正確性檢查（無雜訊情境）======
+// 產生無雜訊 LLR，正確 bit 對應 LLR = +1000 (0) 或 -1000 (1)
+        double noiseless_LLR[TOTAL_BITS];
+        for (int i = 0; i < TOTAL_BITS; i++) {
+            noiseless_LLR[i] = bits[i] ? -1000.0 : 1000.0;
+        }
+
+        // 產生標準 RS parity check 矩陣
+        buildRSBinaryParityCheckMatrix();
+
+        // 呼叫 parity check
+        printf("Parity check (no noise): %s\n", check_parity(noiseless_LLR) ? "PASS" : "FAIL");
+
+        // ===============================
         // BPSK 調變與 AWGN 通道
         bpsk_modulation(bits, SNR_DB);
         computeInitialLLR(SNR_DB);
