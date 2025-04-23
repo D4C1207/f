@@ -700,3 +700,4 @@ int main() {
     return 0;
 }
 
+//尚未完成osd純軟體實作
